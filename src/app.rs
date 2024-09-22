@@ -5,9 +5,12 @@ use cosmic::iced::wayland::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
 use cosmic::iced::Limits;
 use cosmic::iced_style::application;
-use cosmic::widget::{Column, text};
+use cosmic::widget::{text, Column};
 use cosmic::{Application, Element, Theme};
 use sysinfo::System;
+
+
+
 
 
 /// This is the struct that represents your application.
@@ -23,25 +26,26 @@ pub struct PowerManager {
     system: System,
 }
 
-/// This is the enum that contains all the possible variants that your application will need to transmit messages.
-/// This is used to communicate between the different parts of your application.
-/// If your application does not need to send messages, you can use an empty enum or `()`.
 #[derive(Debug, Clone)]
 pub enum Message {
     TogglePopup,
     PopupClosed(Id),
-    Tick
+    Tick,
 }
 
+impl PowerManager {
+    fn calculate_avg_cpu_usage(&self) -> f32 {
+        let total_cpus = self.cpu_usages.len();
+        if total_cpus == 0 {
+            return 0.0;
+        }
 
-/// Implement the `Application` trait for your application.
-/// This is where you define the behavior of your application.
-///
-/// The `Application` trait requires you to define the following types and constants:
-/// - `Executor` is the async executor that will be used to run your application's commands.
-/// - `Flags` is the data that your application needs to use before it starts.
-/// - `Message` is the enum that contains all the possible variants that your application will need to transmit messages.
-/// - `APP_ID` is the unique identifier of your application.
+        let total_usage: f32 = self.cpu_usages.iter().sum();
+
+        total_usage / total_cpus as f32
+    }
+}
+
 impl Application for PowerManager {
     type Executor = cosmic::executor::Default;
 
@@ -59,13 +63,6 @@ impl Application for PowerManager {
         &mut self.core
     }
 
-    /// This is the entry point of your application, it is where you initialize your application.
-    ///
-    /// Any work that needs to be done before the application starts should be done here.
-    ///
-    /// - `core` is used to passed on for you by libcosmic to use in the core of your own application.
-    /// - `flags` is used to pass in any data that your application needs to use before it starts.
-    /// - `Command` type is used to send messages to your application. `Command::none()` can be used to send no messages to your application.
     fn init(core: Core, _flags: Self::Flags) -> (Self, Command<Self::Message>) {
         let app = PowerManager {
             core,
@@ -79,44 +76,54 @@ impl Application for PowerManager {
         Some(Message::PopupClosed(id))
     }
 
-    /// This is the main view of your application, it is the root of your widget tree.
-    ///
-    /// The `Element` type is used to represent the visual elements of your application,
-    /// it has a `Message` associated with it, which dictates what type of message it can send.
-    ///
-    /// To get a better sense of which widgets are available, check out the `widget` module.
-    fn view(&self) -> Element<Self::Message> {
-        self.core
-            .applet
-            .icon_button("display-symbolic")
-            .on_press(Message::TogglePopup)
-            .into()
-    }
+    // fn view(&self) -> Element<Self::Message> {
+    //     self.core
+    //         .applet
+    //         .icon_button("display-symbolic")
+    //         .on_press(Message::TogglePopup)
+    //         .into()
 
-    fn view_window(&self, _id: Id) -> Element<Self::Message> {
-        
-        let cpu_usage_display = self.system.cpus().iter().enumerate().map(|(i, cpu)| {
-            text(format!("CPU {}: {:.2}%", i + 1, cpu.cpu_usage()))
+    // }
+    //     fn view_window(&self, _id: Id) -> Element<Self::Message> {
+
+    fn view(&self) -> Element<Self::Message> {
+        let aggregate_cpu_usage = self.calculate_avg_cpu_usage();
+
+        let aggregate_cpu_usage_display: Element<Message> =
+            text(format!("Aggregate CPU usage: {:.2}%", aggregate_cpu_usage))
                 .size(20)
-                .into()
-        });
+                .into();
+
+        let cpu_usage_display: Vec<Element<Message>> = self
+            .system
+            .cpus()
+            .iter()
+            .enumerate()
+            .map(|(i, cpu)| {
+                text(format!("CPU {}: {:.2}%", i + 1, cpu.cpu_usage()))
+                    .size(20)
+                    .into()
+            })
+            .collect();
         // let content_list = widget::list_column()
         //     .padding(5)
         //     .spacing(0)
         //     .add(settings::item(
         //         fl!("example-row"),
-        //         widget::toggler(None, self.example_row, |value| {
+        //         widget::toggler(None, self.example_row, |value| ll{
         //             Message::ToggleExampleRow(value)
         //         }),
         //     ));
-        let content = Column::with_children(cpu_usage_display).spacing(10).padding(20);
+        //let content = Column::with_children(cpu_usage_display).spacing(10).padding(20);
+        let content = Column::new()
+            .push(aggregate_cpu_usage_display)
+            // .push(Column::with_children(cpu_usage_display).spacing(10))
+            .spacing(10)
+            .padding(20);
 
         self.core.applet.popup_container(content).into()
     }
 
-    /// Application messages are handled here. The application state can be modified based on
-    /// what message was received. Commands may be returned for asynchronous execution on a
-    /// background thread managed by the application's executor.
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::TogglePopup => {
@@ -144,7 +151,12 @@ impl Application for PowerManager {
             }
             Message::Tick => {
                 self.system.refresh_cpu_all();
-                self.cpu_usages = self.system.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
+                self.cpu_usages = self
+                    .system
+                    .cpus()
+                    .iter()
+                    .map(|cpu| cpu.cpu_usage())
+                    .collect();
             }
         }
         Command::none()

@@ -23,7 +23,9 @@ pub struct PowerManager {
     system: System,
 }
 
-
+/// This is the enum that contains all the possible variants that your application will need to transmit messages.
+/// This is used to communicate between the different parts of your application.
+/// If your application does not need to send messages, you can use an empty enum or `()`.
 #[derive(Debug, Clone)]
 pub enum Message {
     TogglePopup,
@@ -32,7 +34,14 @@ pub enum Message {
 }
 
 
-
+/// Implement the `Application` trait for your application.
+/// This is where you define the behavior of your application.
+///
+/// The `Application` trait requires you to define the following types and constants:
+/// - `Executor` is the async executor that will be used to run your application's commands.
+/// - `Flags` is the data that your application needs to use before it starts.
+/// - `Message` is the enum that contains all the possible variants that your application will need to transmit messages.
+/// - `APP_ID` is the unique identifier of your application.
 impl Application for PowerManager {
     type Executor = cosmic::executor::Default;
 
@@ -50,6 +59,13 @@ impl Application for PowerManager {
         &mut self.core
     }
 
+    /// This is the entry point of your application, it is where you initialize your application.
+    ///
+    /// Any work that needs to be done before the application starts should be done here.
+    ///
+    /// - `core` is used to passed on for you by libcosmic to use in the core of your own application.
+    /// - `flags` is used to pass in any data that your application needs to use before it starts.
+    /// - `Command` type is used to send messages to your application. `Command::none()` can be used to send no messages to your application.
     fn init(core: Core, _flags: Self::Flags) -> (Self, Command<Self::Message>) {
         let app = PowerManager {
             core,
@@ -63,6 +79,12 @@ impl Application for PowerManager {
         Some(Message::PopupClosed(id))
     }
 
+    /// This is the main view of your application, it is the root of your widget tree.
+    ///
+    /// The `Element` type is used to represent the visual elements of your application,
+    /// it has a `Message` associated with it, which dictates what type of message it can send.
+    ///
+    /// To get a better sense of which widgets are available, check out the `widget` module.
     fn view(&self) -> Element<Self::Message> {
         self.core
             .applet
@@ -92,6 +114,9 @@ impl Application for PowerManager {
         self.core.applet.popup_container(content).into()
     }
 
+    /// Application messages are handled here. The application state can be modified based on
+    /// what message was received. Commands may be returned for asynchronous execution on a
+    /// background thread managed by the application's executor.
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::TogglePopup => {
